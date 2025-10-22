@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Postcrossing Dashboard</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    :root{ --card-w:360px; --accent:#4b7bec; --muted:#718096; }
+    body{ font-family: "Poppins", Arial, sans-serif; background: linear-gradient(135deg,#c7f2ff 0%, #b8c6ff 100%); margin:0; min-height:100vh; display:flex; align-items:flex-start; justify-content:center; padding:36px 16px; color:#0f172a; }
+    main{ width:100%; max-width:1100px; display:flex; gap:20px; align-items:flex-start; flex-wrap:wrap;}
+    .col{ display:flex; flex-direction:column; gap:18px; }
+    .card{ background:#fff; border-radius:14px; box-shadow:0 10px 30px rgba(9,30,66,0.08); padding:18px; width:var(--card-w);}
+    h1{ margin:0 0 6px 0; color:white; text-align:center; width:100%; font-size:22px;}
+    header{ width:100%; text-align:center; margin-bottom:6px; }
+    label{ font-size:13px; color:var(--muted); display:block; margin-bottom:6px;}
+    input[type="text"], input[type="email"], select { width:100%; padding:10px 12px; border-radius:10px; border:1px solid #e6eef9; box-sizing:border-box; font-size:14px; }
+    button{ width:100%; padding:10px; border-radius:10px; border:none; background:var(--accent); color:white; font-weight:600; cursor:pointer; }
+    .muted{ font-size:13px; color:var(--muted); margin-top:8px;}
+    .result{ font-weight:600; color:#0b1220; margin-top:6px; min-height:20px;}
+    .row{ display:flex; gap:12px; }
+    @media(max-width:760px){ main{flex-direction:column; align-items:center;} .card{ width:92vw; max-width:420px;} }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="col">
+      <div style="text-align:center;width:100%"><h1>🌍 Postcrossing Dashboard</h1></div>
+
+      <!-- Register -->
+      <section class="card">
+        <h3>📝 Register User</h3>
+        <label>Username</label><input id="name" placeholder="e.g. maha123" />
+        <label>Email</label><input id="email" type="email" placeholder="you@example.com" />
+        <label>Country</label><input id="country" placeholder="Pakistan" />
+        <label>Address</label><input id="address" placeholder="House #123, Lahore" />
+        <div style="height:10px"></div>
+        <button id="btnRegister">Register</button>
+        <div id="registerResult" class="result"></div>
+      </section>
+
+      <!-- Users List -->
+      <section class="card">
+        <h3>📋 All Registered Users</h3>
+        <div id="usersList" class="muted">Loading users…</div>
+        <div style="height:6px"></div>
+        <button id="refreshUsers" style="background:#2d3748">Refresh Users</button>
+      </section>
+
+      <!-- Add Postcard -->
+      <section class="card">
+        <h3>🖼️ Add New Postcard</h3>
+        <label>Postcard ID</label><input id="postcard_id" placeholder="e.g. PC001" />
+        <label>Message</label><input id="message" placeholder="Greetings from Pakistan!" />
+        <label>Image URL</label><input id="image_url" placeholder="https://example.com/postcard.jpg" />
+        <label>Sender Username</label><input id="sender_for_postcard" placeholder="e.g. maha123" list="usersDatalist" />
+        <div style="height:10px"></div>
+        <button id="btnAddPostcard">Add Postcard</button>
+        <div id="addPostcardResult" class="result"></div>
+      </section>
+    </div>
+
+    <div class="col">
+      <!-- Send -->
+      <section class="card">
+        <h3>💌 Send Postcard</h3>
+        <label>Your username (sender)</label><input id="sender" placeholder="Type your username" list="usersDatalist" />
+        <label>Choose receiver</label>
+        <select id="receiverSelect"><option value="">-- Select receiver --</option></select>
+        <label>Or type receiver username</label><input id="receiverInput" placeholder="Type receiver username" list="usersDatalist" />
+        <label>Postcard ID</label><input id="postcardId" placeholder="e.g. PC001" />
+        <div style="height:8px"></div>
+        <button id="btnSend">Send Postcard</button>
+        <div id="sendResult" class="result"></div>
+      </section>
+
+      <!-- View -->
+      <section class="card">
+        <h3>📬 View Postcards</h3>
+        <label>Username</label><input id="viewUser" placeholder="username to view" list="usersDatalist" />
+        <div style="height:8px"></div>
+        <button id="btnView">View Postcards</button>
+        <div id="viewResult" class="result"></div>
+      </section>
+    </div>
+  </main>
+
+  <!-- Datalist for autocomplete -->
+  <datalist id="usersDatalist"></datalist>
+
+<script>
+const jsonHeaders = { 'Content-Type': 'application/x-www-form-urlencoded' };
+
+async function postForm(path, params){
+  const res = await fetch(path, { method:'POST', headers:jsonHeaders, body:new URLSearchParams(params) });
+  const text = await res.text();
+  try { return JSON.parse(text); } catch(e){ return { error: 'Invalid JSON response', raw: text } }
+}
+
+// Load users
+async function loadUsers(){
+  const elUsersList = document.getElementById('usersList');
+  elUsersList.textContent = 'Loading users…';
+  try {
+    const res = await fetch('/users');
+    const users = await res.json();
+
+    if (!Array.isArray(users) || users.length===0){
+      elUsersList.textContent = 'No users yet.';
+    } else {
+      elUsersList.textContent = users.map(u => `${u.username} (${u.country||'?'})`).join(' • ');
+    }
+
+    const select = document.getElementById('receiverSelect');
+    const datalist = document.getElementById('usersDatalist');
+    select.innerHTML = '<option value="">-- Select receiver --</option>';
+    datalist.innerHTML = '';
+
+    users.forEach(u => {
+      const opt = document.createElement('option');
+      opt.value = u.username;
+      opt.text = `${u.username} (${u.country||''})`;
+      select.appendChild(opt);
+
+      const d = document.createElement('option');
+      d.value = u.username;
+      datalist.appendChild(d);
+    });
+
+    elUsersList.style.color = '#334155';
+  } catch(err){
+    elUsersList.textContent = 'Failed to load users';
+    elUsersList.style.color = 'crimson';
+    console.error(err);
+  }
+}
+
+// Register user
+document.getElementById('btnRegister').addEventListener('click', async ()=>{
+  const name = nameEl.value.trim(),
+        email = emailEl.value.trim(),
+        country = countryEl.value.trim(),
+        address = addressEl.value.trim();
+  if(!name || !email){ registerResult.innerText='Name & email required'; return; }
+  const res = await postForm('/register', { name, email, country, address });
+  registerResult.innerText = res.message || res.error || JSON.stringify(res);
+  if (res.message) await loadUsers();
+});
+
+// Add postcard
+document.getElementById('btnAddPostcard').addEventListener('click', async ()=>{
+  const postcard_id = postcard_idEl.value.trim();
+  const message = messageEl.value.trim();
+  const image_url = image_urlEl.value.trim();
+  const sender = senderForPostcardEl.value.trim();
+  if (!postcard_id || !sender){ addPostcardResult.innerText = 'Postcard ID & sender required'; return; }
+  const res = await postForm('/add_postcard', { code: postcard_id, message, image_url, sender });
+  addPostcardResult.innerText = res.message || res.error || JSON.stringify(res);
+});
+
+// Send postcard
+document.getElementById('btnSend').addEventListener('click', async ()=>{
+  const sender = senderEl.value.trim();
+  const receiver = receiverSelect.value || receiverInput.value.trim();
+  const postcard_id = postcardId.value.trim();
+  if (!sender || !receiver || !postcard_id) { sendResult.innerText='All fields required'; return; }
+  const res = await postForm('/send_postcard', { sender, receiver, postcard_id });
+  sendResult.innerText = res.message || res.error || JSON.stringify(res);
+});
+
+// View postcards
+document.getElementById('btnView').addEventListener('click', async ()=>{
+  const user = viewUser.value.trim();
+  if (!user) { viewResult.innerText='Enter username'; return; }
+  const res = await postForm('/view_postcards', { user });
+  viewResult.innerText = JSON.stringify(res, null, 2);
+});
+
+
+
+// DOM shortcuts
+const $ = id => document.getElementById(id);
+const [
+  nameEl, emailEl, countryEl, addressEl, registerResult, senderEl, receiverSelect,
+  receiverInput, postcardId, sendResult, viewUser, viewResult,
+  postcard_idEl, messageEl, image_urlEl, senderForPostcardEl, addPostcardResult
+] = [
+  'name','email','country','address','registerResult','sender','receiverSelect','receiverInput',
+  'postcardId','sendResult','viewUser','viewResult','postcard_id','message','image_url','sender_for_postcard','addPostcardResult'
+].map($);
+
+// Load users on page load
+loadUsers();
+document.getElementById('refreshUsers').addEventListener('click', loadUsers);
+</script>
+</body>
+</html>
