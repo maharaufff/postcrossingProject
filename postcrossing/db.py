@@ -1,4 +1,4 @@
-# db.py  (optional replacement, only if you add .env)
+
 from pymongo import MongoClient
 from dotenv import load_dotenv
 import os
@@ -15,3 +15,4 @@ try:
     print("✅ Connected to MongoDB Atlas successfully!")
 except Exception as e:
     print("❌ Connection failed:", e)
+
