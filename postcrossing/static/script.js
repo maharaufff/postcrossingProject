@@ -1,6 +1,6 @@
 const BASE_URL = "http://127.0.0.1:5000";
 
-// Register User
+
 async function registerUser() {
   const username = document.getElementById("username").value;
   const email = document.getElementById("email").value;
@@ -16,7 +16,7 @@ async function registerUser() {
   alert(data.message || data.error);
 }
 
-// Send Postcard
+
 async function sendPostcard() {
   const sender = document.getElementById("sender").value;
   const postcard_code = document.getElementById("postcard_code").value;
@@ -32,7 +32,6 @@ async function sendPostcard() {
     data.message || data.error;
 }
 
-// View Received
 async function viewReceived() {
   const username = document.getElementById("receiver_username").value;
 
@@ -53,3 +52,4 @@ async function viewReceived() {
     list.appendChild(li);
   });
 }
+
