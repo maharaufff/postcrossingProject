@@ -11,19 +11,15 @@ app = Flask(__name__)
 CORS(app)
 
 
-# ---------------- BACKGROUND AUTO DELIVERY ---------------- #
 
 def simulate_delivery(postcard_id, delay_seconds=120):
-    """
-    Automatically marks a postcard as received after a delay.
-    Default delay = 2 minutes (120 seconds)
-    """
+
     print(f"🚚 Delivery simulation started for {postcard_id}... will deliver in {delay_seconds}s")
     time.sleep(delay_seconds)
 
     postcard = db.postcards.find_one({"postcard_id": postcard_id})
     if not postcard or postcard["status"] != "traveling":
-        return  # Skip if already delivered or not traveling
+        return
 
     receiver = postcard["receiver_id"]
 
@@ -42,8 +38,6 @@ def simulate_delivery(postcard_id, delay_seconds=120):
 
     print(f"🎉 Auto-delivery complete: postcard {postcard_id} received by {receiver}!")
 
-
-# ---------------- USER ROUTES ---------------- #
 
 @app.route("/register", methods=["POST"])
 def register_user():
@@ -86,7 +80,7 @@ def get_users():
         return jsonify({"error": str(e)}), 500
 
 
-# ---------------- POSTCARD ROUTES ---------------- #
+
 
 @app.route("/add_postcard", methods=["POST"])
 def add_postcard():
@@ -121,11 +115,11 @@ def add_postcard():
         return jsonify({"error": str(e)}), 500
 
 
-# ---------------- TRANSACTION ROUTES ---------------- #
+
 
 @app.route("/send_postcard", methods=["POST"])
 def send_postcard():
-    # ✅ Accept both JSON and FormData
+
     data = request.get_json(silent=True) or request.form
 
     sender = data.get("sender") or data.get("sender_id")
@@ -148,7 +142,7 @@ def send_postcard():
     if not postcard:
         return jsonify({"error": f"Postcard '{postcard_id}' not found"}), 404
 
-    # 📨 Mark postcard as sent (traveling)
+
     db.postcards.update_one(
         {"postcard_id": postcard_id},
         {"$set": {
@@ -158,7 +152,7 @@ def send_postcard():
         }}
     )
 
-    # 🧾 Log transaction
+
     txn = {
         "txn_id": str(ObjectId()),
         "postcard_id": postcard_id,
@@ -175,7 +169,7 @@ def send_postcard():
         {"$inc": {"sent_count": 1}, "$push": {"postcards_sent": postcard_id}}
     )
 
-    # 🔁 Try reciprocal matching
+
     pending = db.postcards.find_one({"status": "pending", "sender_id": {"$ne": sender}})
 
     reciprocal_msg = ""
@@ -216,19 +210,19 @@ def receive_postcard():
     if postcard["status"] == "received":
         return jsonify({"message": f"📬 Postcard '{postcard_id}' already marked as received."}), 200
 
-    # ✅ Update postcard status
+
     db.postcards.update_one(
         {"postcard_id": postcard_id},
         {"$set": {"status": "received", "received_date": datetime.utcnow()}}
     )
 
-    # ✅ Update receiver stats
+
     db.users.update_one(
         {"username": user},
         {"$inc": {"received_count": 1}, "$push": {"postcards_received": postcard_id}}
     )
 
-    # ✅ Log transaction
+
     db.transactions.insert_one({
         "txn_id": str(ObjectId()),
         "postcard_id": postcard_id,
@@ -241,7 +235,6 @@ def receive_postcard():
     return jsonify({"message": f"✅ Postcard '{postcard_id}' marked as received by {user}!"}), 200
 
 
-# ---------------- PROFILE ROUTE ---------------- #
 
 @app.route("/profile", methods=["GET"])
 def get_profile():
@@ -253,7 +246,7 @@ def get_profile():
     if not user:
         return jsonify({"error": f"User '{username.strip()}' not found"}), 404
 
-    # Get postcards by status
+
     sent = list(db.postcards.find(
         {"sender_id": username.strip()},
         {"_id": 0, "postcard_id": 1, "receiver_id": 1, "status": 1}
@@ -269,7 +262,7 @@ def get_profile():
         {"_id": 0, "postcard_id": 1, "receiver_id": 1, "status": 1}
     ))
 
-    # Build profile data
+
     profile_data = {
         "user_id": str(user.get("_id")),
         "username": user.get("username"),
@@ -295,7 +288,7 @@ def get_profile():
         }
     }), 200
 
-# ---------------- VIEW POSTCARDS ---------------- #
+
 
 @app.route("/view_postcards", methods=["POST"])
 def view_postcards():
@@ -303,19 +296,18 @@ def view_postcards():
     if not user:
         return jsonify({"error": "User required"}), 400
 
-    # 📬 Sent postcards
+
     sent = list(db.postcards.find(
         {"sender_id": user, "status": {"$in": ["sent", "traveling"]}},
         {"_id": 0, "postcard_id": 1, "receiver_id": 1, "status": 1, "message": 1}
     ))
 
-    # 📥 Received postcards
+
     received = list(db.postcards.find(
         {"receiver_id": user, "status": "received"},
         {"_id": 0, "postcard_id": 1, "sender_id": 1, "status": 1, "message": 1}
     ))
 
-    # 🚚 Traveling postcards (those the user will receive but haven’t yet)
     traveling = list(db.postcards.find(
         {"receiver_id": user, "status": "traveling"},
         {"_id": 0, "postcard_id": 1, "sender_id": 1, "status": 1, "message": 1}
@@ -328,14 +320,12 @@ def view_postcards():
     }), 200
 
 
-# ---------------- FRONTEND ---------------- #
 
 @app.route("/")
 def home():
     return render_template("index.html")
 
 
-# ---------------- MAIN ---------------- #
 if __name__ == "__main__":
     print("✅ Flask app running on http://127.0.0.1:5000")
     app.run(debug=True)
